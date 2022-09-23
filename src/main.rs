@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use std::net::{TcpListener, TcpStream};
 use std::thread;
 use tungstenite::accept;
@@ -57,17 +58,35 @@ fn handle_client(stream: TcpStream) {
     loop {
         let msg = match websocket.read_message() {
             Ok(msg) => msg,
-            Err(err) => {
-                match err {
-                    tungstenite::error::Error::ConnectionClosed => break,
-                    other => {
-                        println!("Error when receiving the message: {:?}", other);
-                        break;
-                    }
+            Err(err) => match err {
+                tungstenite::error::Error::ConnectionClosed => break,
+                other => {
+                    println!("Error when receiving the message: {:?}", other);
+                    break;
                 }
+            },
+        };
+
+        // Parse the incoming message into a more manageable struct.
+        let msg_string = msg.to_string();
+
+        let response_data: ResponseData = match serde_json::from_str(&msg_string) {
+            Ok(parsed_msg) => parsed_msg,
+            Err(err) => {
+                println!("Unable to parse incoming message: {}", err);
+                continue;
             }
         };
 
-        println!("Received message: {}", msg);
+        println!("Current time: {}", response_data.current_time);
+        println!("Playlist contents: {}", response_data.playlist_contents);
     }
+}
+
+#[derive(Serialize, Deserialize)]
+struct ResponseData {
+    #[serde(alias = "currentTime")]
+    current_time: String,
+    #[serde(alias = "playlistContents")]
+    playlist_contents: String,
 }
